@@ -4,8 +4,9 @@ import { mkdir } from "node:fs/promises";
 test("landing introduces the archive and explicitly labels the sample entry", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText(/NYUAD|Yaqeim/);
-  await expect(page.getByLabel("University email")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Request Access" })).toBeVisible();
+  await expect(page.getByText("No sign-in needed", { exact: false })).toBeVisible();
+  await expect(page.getByLabel("University email")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Request Access" })).toHaveCount(0);
   await page.getByRole("link", { name: /explore the sample archive/i }).click();
   await expect(page).toHaveURL(/\/dashboard/);
   await expect(page.getByText(/sample|fictional|demo/i).first()).toBeVisible();
