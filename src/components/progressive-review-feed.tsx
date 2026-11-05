@@ -5,7 +5,13 @@ import { loadMoreReviews } from "@/app/actions";
 import type { Review } from "@/lib/types";
 import { ReviewFeed } from "./review-feed";
 
-export function ProgressiveReviewFeed({ initialReviews, initialPage, professorId, courseId, sort }: {
+export function ProgressiveReviewFeed({
+  initialReviews,
+  initialPage,
+  professorId,
+  courseId,
+  sort,
+}: {
   initialReviews: Review[];
   initialPage: number;
   professorId?: string;
@@ -28,9 +34,16 @@ export function ProgressiveReviewFeed({ initialReviews, initialPage, professorId
     try {
       const nextPage = page + 1;
       const next = await loadMoreReviews({ professorId, courseId, page: nextPage, sort });
-      setAdditional(previous => {
-        const known = new Set([...initialReviews, ...previous].map(review => review.id));
-        return [...previous, ...next.filter(review => !known.has(review.id))];
+      setAdditional((previous) => {
+        const known = new Set([...initialReviews, ...previous].map((review) => review.id));
+        return [
+          ...previous,
+          ...next.filter((review) => {
+            if (known.has(review.id)) return false;
+            known.add(review.id);
+            return true;
+          }),
+        ];
       });
       setPage(nextPage);
       setHasMore(next.length === 20 && nextPage < 5001);
@@ -44,15 +57,36 @@ export function ProgressiveReviewFeed({ initialReviews, initialPage, professorId
 
   useEffect(() => {
     if (!sentinel.current || !hasMore || error || !("IntersectionObserver" in window)) return;
-    const observer = new IntersectionObserver(entries => {
-      if (entries.some(entry => entry.isIntersecting)) void load();
-    }, { rootMargin: "120px" });
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) void load();
+      },
+      { rootMargin: "120px" },
+    );
     observer.observe(sentinel.current);
     return () => observer.disconnect();
   }, [hasMore, error, load]);
 
-  return <><ReviewFeed reviews={[...initialReviews, ...additional]} />
-    {hasMore && <div ref={sentinel} className="load-more"><button type="button" disabled={loading} onClick={() => void load()}>{loading ? "Loading reviews…" : "Load more reviews"}</button><p className="meta" aria-live="polite">{loading ? "Opening the next page of experiences." : `${initialReviews.length + additional.length} reviews displayed.`}</p></div>}
-    {error && <p className="error" role="alert">{error}</p>}
-  </>;
+  return (
+    <>
+      <ReviewFeed reviews={[...initialReviews, ...additional]} />
+      {hasMore && (
+        <div ref={sentinel} className="load-more">
+          <button type="button" disabled={loading} onClick={() => void load()}>
+            {loading ? "Loading reviews…" : "Load more reviews"}
+          </button>
+          <p className="meta" aria-live="polite">
+            {loading
+              ? "Opening the next page of experiences."
+              : `${initialReviews.length + additional.length} reviews displayed.`}
+          </p>
+        </div>
+      )}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+    </>
+  );
 }

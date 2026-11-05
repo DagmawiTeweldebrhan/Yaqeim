@@ -1,14 +1,20 @@
 import "server-only";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { createSupabaseServer } from "./supabase/server";
 import { hasSupabase, isDemo, universityDomain } from "./config";
 import { isUniversityEmail } from "./validation";
-export async function currentUser() {
+export const currentUser = cache(async function currentUser() {
   if (!hasSupabase()) return null;
   const supabase = await createSupabaseServer();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  return !error && user?.email_confirmed_at && isUniversityEmail(user.email || "", universityDomain) ? user : null;
-}
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+  return !error && user?.email_confirmed_at && isUniversityEmail(user.email || "", universityDomain)
+    ? user
+    : null;
+});
 export async function requireUser() {
   if (isDemo()) return null;
   const user = await currentUser();

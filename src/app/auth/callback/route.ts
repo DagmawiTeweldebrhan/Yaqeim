@@ -9,8 +9,15 @@ export async function GET(request: NextRequest) {
   if (hasSupabase() && code) {
     const client = await createSupabaseServer();
     const { data, error } = await client.auth.exchangeCodeForSession(code);
-    if (!error && data.user?.email_confirmed_at && isUniversityEmail(data.user.email || "", universityDomain)) return NextResponse.redirect(new URL(safeNext(searchParams.get("next")), origin));
+    if (
+      !error &&
+      data.user?.email_confirmed_at &&
+      isUniversityEmail(data.user.email || "", universityDomain)
+    )
+      return NextResponse.redirect(new URL(safeNext(searchParams.get("next")), origin));
     await client.auth.signOut();
   }
-  return NextResponse.redirect(new URL("/?message=This+sign-in+link+is+invalid+or+expired.+Please+request+a+new+one.", origin));
+  return NextResponse.redirect(
+    new URL("/?message=This+sign-in+link+is+invalid+or+expired.+Please+request+a+new+one.", origin),
+  );
 }

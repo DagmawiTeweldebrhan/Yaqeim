@@ -1,0 +1,9 @@
+architecture.md
+node_modules/
+.next/
+.local/
+pipeline/
+drizzle/
+package-lock.json
+playwright-report/
+test-results/
