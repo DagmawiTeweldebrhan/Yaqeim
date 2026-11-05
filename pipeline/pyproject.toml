@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yaqeim-ingestion"
+version = "1.0.0"
+description = "Private, administrator-operated ingestion for the NYUAD academic archive"
+requires-python = ">=3.11"
+dependencies = [
+  "selenium>=4.30,<5",
+  "google-genai>=1.30,<3",
+  "psycopg[binary]>=3.2,<4",
+]
+
+[project.scripts]
+yaqeim-ingest = "yaqeim_ingest.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["yaqeim_ingest*"]

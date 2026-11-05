@@ -1,0 +1,5 @@
+*
+!pyproject.toml
+!requirements.lock
+!yaqeim_ingest/
+!yaqeim_ingest/*.py
