@@ -1,1 +1,1 @@
-{"version":"7","dialect":"postgresql","entries":[{"idx":0,"version":"7","when":1793884800000,"tag":"0000_academic_archive","breakpoints":true}]}
+{"version":"7","dialect":"postgresql","entries":[{"idx":0,"version":"7","when":1793884800000,"tag":"0000_academic_archive","breakpoints":true},{"idx":1,"version":"7","when":1793884800001,"tag":"0001_professor_administration","breakpoints":true}]}

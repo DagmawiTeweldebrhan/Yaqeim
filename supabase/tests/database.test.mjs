@@ -73,7 +73,7 @@ dbTest("all application tables enable row level security", async () => {
 });
 dbTest("Drizzle journal makes subsequent deployments idempotent", async () => {
   await migrate(drizzle(db), { migrationsFolder });
-  assert.equal((await db.query('SELECT count(*) AS count FROM drizzle.__drizzle_migrations')).rows[0].count, 1);
+  assert.equal((await db.query('SELECT count(*) AS count FROM drizzle.__drizzle_migrations')).rows[0].count, 2);
 });
 dbTest("anonymous roles cannot read catalogs or raw reviews", async () => {
   await db.exec("SET LOCAL ROLE anon");
@@ -292,4 +292,48 @@ dbTest("review RPC enforces the durable per-user hourly limit", async () => {
 dbTest("security-definer functions pin their search paths", async () => {
   const { rows } = await db.query("SELECT proname,proconfig FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN ('public','private') AND prosecdef");
   for (const row of rows) assert.ok(row.proconfig.some((value) => value.startsWith("search_path=")), row.proname);
+});
+dbTest("students cannot merge professor profiles", async () => {
+  await signedIn();
+  await assert.rejects(db.query("SELECT public.merge_professors($1,$2)", [professorTwo, professor]), /permission denied/);
+});
+dbTest("anonymous visitors cannot merge professor profiles", async () => {
+  await db.exec("SET LOCAL ROLE anon");
+  await assert.rejects(db.query("SELECT public.merge_professors($1,$2)", [professorTwo, professor]), /permission denied/);
+});
+dbTest("admin merge preserves review identity, archive hashes and votes", async () => {
+  await signedIn(bob);
+  await db.query("SELECT public.vote_review($1,1)", [importedReview]);
+  await db.exec("SET LOCAL ROLE service_role");
+  const { rows } = await db.query("SELECT public.merge_professors($1,$2) AS result", [professorTwo, professor]);
+  assert.equal(rows[0].result.reviews_moved, 1);
+  const reviews = (await db.query("SELECT * FROM public.reviews WHERE id=$1", [importedReview])).rows;
+  assert.equal(reviews[0].professor_id, professor);
+  assert.equal(reviews[0].source_hash, "a".repeat(64));
+  assert.equal(reviews[0].user_id, null);
+  assert.equal((await db.query("SELECT * FROM public.professors WHERE id=$1", [professorTwo])).rows.length, 0);
+  assert.equal((await db.query("SELECT * FROM public.helpful_votes WHERE review_id=$1", [importedReview])).rows.length, 1);
+  await signedIn();
+  const stats = (await db.query("SELECT public.get_professor_stats($1) AS stats", [professor])).rows[0].stats;
+  assert.equal(stats.review_count, 2);
+  assert.equal(stats.overall_rating, 4.5);
+});
+dbTest("admin merge rejects conflicting student reviews without changing data", async () => {
+  await db.query(`INSERT INTO public.reviews(professor_id,course_id,user_id,body,overall_rating,workload_rating,grading_difficulty)
+    VALUES($1,$2,$3,'A separate review exists for what may be a duplicate professor.',4,3,3)`, [professorTwo, course, alice]);
+  await db.exec("SAVEPOINT merge_attempt");
+  await db.exec("SET LOCAL ROLE service_role");
+  await assert.rejects(db.query("SELECT public.merge_professors($1,$2)", [professorTwo, professor]), /Cannot merge/);
+  await db.exec("ROLLBACK TO SAVEPOINT merge_attempt");
+  assert.equal((await db.query("SELECT * FROM public.professors")).rows.length, 2);
+  assert.equal((await db.query("SELECT * FROM public.reviews WHERE professor_id=$1", [professorTwo])).rows.length, 2);
+  assert.equal((await db.query("SELECT * FROM public.reviews WHERE professor_id=$1", [professor])).rows.length, 1);
+});
+dbTest("admin merge rejects identical source and target", async () => {
+  await db.exec("SET LOCAL ROLE service_role");
+  await assert.rejects(db.query("SELECT public.merge_professors($1,$1)", [professor]), /different professor/);
+});
+dbTest("admin merge rejects missing profiles", async () => {
+  await db.exec("SET LOCAL ROLE service_role");
+  await assert.rejects(db.query("SELECT public.merge_professors($1,gen_random_uuid())", [professor]), /must exist/);
 });
