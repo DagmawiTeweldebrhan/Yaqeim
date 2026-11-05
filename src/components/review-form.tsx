@@ -1,0 +1,32 @@
+"use client";
+import { useActionState, useState } from "react";
+import { submitNewReview, updateReview, deleteReview } from "@/app/actions";
+import { TAGS, type Tag } from "@/lib/taxonomy";
+import type { ActionState, Course, OwnReview, Professor } from "@/lib/types";
+const initial: ActionState = { status: "idle", message: "" };
+export function ReviewForm({ professors, courses, review, defaults }: { professors: Professor[]; courses: Course[]; review?: OwnReview; defaults?: { professor?: string; course?: string } }) {
+  const [state, action, pending] = useActionState(review ? updateReview.bind(null, review.id) : submitNewReview, initial);
+  const [professorQuery, setProfessorQuery] = useState("");
+  const [courseQuery, setCourseQuery] = useState("");
+  const [draft, setDraft] = useState({ professor_id: review?.professor_id || defaults?.professor || "", course_id: review?.course_id || defaults?.course || "", body: review?.body || "", overall_rating: review?.overall_rating || 3, workload_rating: review?.workload_rating || 3, grading_difficulty: review?.grading_difficulty || 3, tags: review?.tags || [] as Tag[], is_anonymous: review?.is_anonymous ?? true });
+  const matchingProfessors = professors.filter(p => p.id === draft.professor_id || `${p.full_name} ${p.department}`.toLowerCase().includes(professorQuery.toLowerCase()));
+  const matchingCourses = courses.filter(c => c.id === draft.course_id || `${c.code} ${c.title}`.toLowerCase().includes(courseQuery.toLowerCase()));
+  function fieldError(key: string) { return state.fields?.[key] ? <p className="error" id={`${key}-error`}>{state.fields[key].join(" ")}</p> : null; }
+  return <form action={action} className="review-form">
+    {state.message && <p className={state.status} role={state.status === "error" ? "alert" : "status"}>{state.message}</p>}
+    <div className="form-field">{!review && <><label htmlFor="professor-query" className="meta">Find a professor</label><input id="professor-query" type="search" value={professorQuery} onChange={e => setProfessorQuery(e.target.value)} placeholder="Type a name or department to narrow the list" className="catalog-search" /></>}<label htmlFor="professor">Professor</label><select id="professor" name="professor_id" required value={draft.professor_id} onChange={e => setDraft({ ...draft, professor_id: e.target.value })} disabled={!!review}><option value="" disabled>Choose a professor</option>{matchingProfessors.map(p => <option key={p.id} value={p.id}>{p.full_name} — {p.department}</option>)}</select>{!matchingProfessors.length && <p className="meta">No matching professors. Try a shorter name.</p>}{review && <input type="hidden" name="professor_id" value={review.professor_id} />}{fieldError("professor_id")}</div>
+    <div className="form-field">{!review && <><label htmlFor="course-query" className="meta">Find a course</label><input id="course-query" type="search" value={courseQuery} onChange={e => setCourseQuery(e.target.value)} placeholder="Type a course title or code to narrow the list" className="catalog-search" /></>}<label htmlFor="course">Course</label><select id="course" name="course_id" required value={draft.course_id} onChange={e => setDraft({ ...draft, course_id: e.target.value })} disabled={!!review}><option value="" disabled>Choose a course</option>{matchingCourses.map(c => <option key={c.id} value={c.id}>{c.code} — {c.title}</option>)}</select>{!matchingCourses.length && <p className="meta">No matching courses. Try a shorter search.</p>}{review && <input type="hidden" name="course_id" value={review.course_id} />}{fieldError("course_id")}</div>
+    <fieldset><legend>Your experience, on a scale of 1–5</legend><p className="meta">Higher overall is better. Higher workload means more work; higher grading difficulty means harder grading.</p>
+      {([ ["overall_rating", "Overall rating", "1 · Poor", "5 · Excellent"], ["workload_rating", "Workload", "1 · Very light", "5 · Very heavy"], ["grading_difficulty", "Grading difficulty", "1 · Lenient", "5 · Demanding"] ] as const).map(([key, label, low, high]) => <div className="rating-field" key={key}><label htmlFor={key}>{label}</label><div className="range-line"><span>{low}</span><input type="range" id={key} name={key} min="1" max="5" step="1" value={draft[key]} onChange={e => setDraft({ ...draft, [key]: Number(e.target.value) })} /><span>{high}</span><output htmlFor={key}>{draft[key]}</output></div>{fieldError(key)}</div>)}
+    </fieldset>
+    <div className="form-field"><label htmlFor="body">Review text</label><p className="meta" id="body-help">What would you tell a student taking this course? Be specific, constructive, and leave out personal information. At least 20 characters; maximum 5,000.</p><textarea id="body" name="body" rows={8} required minLength={20} maxLength={5000} value={draft.body} onChange={e => setDraft({ ...draft, body: e.target.value })} aria-describedby="body-help" />{fieldError("body")}</div>
+    <fieldset><legend>Which descriptions fit?</legend><div className="checkbox-grid">{TAGS.map(tag => <label className="checkbox-label" key={tag}><input type="checkbox" name="tags" value={tag} checked={draft.tags.includes(tag)} onChange={e => setDraft({ ...draft, tags: e.target.checked ? [...draft.tags, tag] : draft.tags.filter(t => t !== tag) })} /> {tag}</label>)}</div>{fieldError("tags")}</fieldset>
+    <div className="form-field"><label className="checkbox-label"><input type="checkbox" name="is_anonymous" checked={draft.is_anonymous} onChange={e => setDraft({ ...draft, is_anonymous: e.target.checked })} /> Post anonymously</label><p className="meta">Anonymous reviews hide your name from other students. Your account remains linked privately for accountability. If unchecked, your university email username is shown.</p></div>
+    <button disabled={pending}>{pending ? "Saving…" : review ? "Save changes" : "Submit review"}</button>
+    <p className="meta">One review per professor and course. You can edit or delete it later.</p>
+  </form>;
+}
+export function DeleteReviewForm({ id }: { id: string }) {
+  const [state, action, pending] = useActionState(deleteReview.bind(null, id), initial);
+  return <form action={action}><h2>Delete this review</h2><label className="checkbox-label"><input type="checkbox" name="confirm" required /> I understand this permanently deletes my review.</label><p><button disabled={pending}>Delete review</button></p>{state.message && <p role="alert" className="error">{state.message}</p>}</form>;
+}

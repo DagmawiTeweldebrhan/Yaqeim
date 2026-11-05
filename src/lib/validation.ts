@@ -5,7 +5,9 @@ export function isUniversityEmail(email: string, domain = "nyu.edu") {
   return parsed.success && email.trim().toLowerCase().split("@")[1] === domain.toLowerCase();
 }
 export function safeNext(value: string | null) {
-  return value && value.startsWith("/") && !value.startsWith("//") && !value.includes("\\") && !/[\r\n]/.test(value) ? value : "/dashboard";
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\") || /[\u0000-\u001f\u007f]/.test(value)) return "/dashboard";
+  try { return new URL(value, "https://archive.invalid").origin === "https://archive.invalid" ? value : "/dashboard"; }
+  catch { return "/dashboard"; }
 }
 export const reviewSchema = z.object({
   professor_id: z.uuid(), course_id: z.uuid(),
