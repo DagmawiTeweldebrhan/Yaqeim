@@ -4,24 +4,61 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
 from .models import RawPost, ValidationError, redact_contacts
 
+GROUP_ID_PATTERN = r"[A-Za-z0-9](?:[A-Za-z0-9._-]{0,98}[A-Za-z0-9])?"
+
+
+def resolve_group_url(url: str | None, query: str | None) -> str:
+    if url:
+        if query is not None:
+            raise ValidationError("Choose --url or ROR_GROUP_ID with --query, not both")
+        return validate_group_url(url)
+    group_id = os.environ.get("ROR_GROUP_ID", "")
+    if not re.fullmatch(GROUP_ID_PATTERN, group_id):
+        raise ValidationError("Set ROR_GROUP_ID to a valid group ID or provide --url")
+    if not isinstance(query, str) or not 1 <= len(query.strip()) <= 200 or re.search(r"[\x00-\x1f\x7f]", query):
+        raise ValidationError("An explicit --query of 1 to 200 characters is required with ROR_GROUP_ID")
+    return f"https://www.facebook.com/groups/{group_id}/search/?{urlencode({'q': query.strip()})}"
+
 
 def validate_group_url(url: str) -> str:
-    parsed = urlparse(url)
-    if (parsed.scheme != "https" or parsed.hostname not in {"facebook.com", "www.facebook.com"}
-            or parsed.username or parsed.password or parsed.port not in (None, 443)
-            or not re.fullmatch(r"/groups/[A-Za-z0-9._-]+(?:/search)?/?", parsed.path)):
+    try:
+        parsed = urlparse(url)
+        valid = (parsed.scheme == "https" and parsed.hostname in {"facebook.com", "www.facebook.com"}
+                 and not parsed.username and not parsed.password and parsed.port in (None, 443)
+                 and re.fullmatch(rf"/groups/{GROUP_ID_PATTERN}(?:/search)?/?", parsed.path)
+                 and not re.search(r"[\x00-\x1f\x7f]", url))
+    except ValueError:
+        valid = False
+    if not valid:
         raise ValidationError("Use an HTTPS Facebook group or group-search URL")
     return url
+
+
+def session_cookies(path: Path | None) -> list[dict[str, Any]]:
+    if path is not None:
+        return load_cookies(path)
+    user = os.environ.get("FB_C_USER", "")
+    session = os.environ.get("FB_XS", "")
+    if not user or not session:
+        raise ValidationError("Provide --cookies or set both FB_C_USER and FB_XS in the environment")
+    if not re.fullmatch(r"[0-9]{1,30}", user):
+        raise ValidationError("FB_C_USER must be a numeric Facebook account ID")
+    if len(session) > 4096 or re.search(r"[\x00-\x20\x7f;]", session):
+        raise ValidationError("FB_XS contains invalid cookie characters or is too long")
+    return [{"name": name, "value": value, "domain": ".facebook.com", "path": "/",
+             "secure": True, "httpOnly": True, "sameSite": "None"}
+            for name, value in (("c_user", user), ("xs", session))]
 
 
 def load_cookies(path: Path) -> list[dict[str, Any]]:
@@ -73,7 +110,7 @@ def post_identity(url: str, fallback_body: str, group_url: str) -> str:
 @dataclass(frozen=True)
 class ScrapeOptions:
     url: str
-    cookie_file: Path
+    cookie_file: Path | None = None
     max_scrolls: int = 100
     max_posts: int = 1000
     idle_rounds: int = 4
@@ -92,7 +129,7 @@ class ScrapeOptions:
 
 def scrape_posts(options: ScrapeOptions, driver: Any = None, sleep: Callable = time.sleep) -> Iterable[RawPost]:
     options.validate()
-    cookies = load_cookies(options.cookie_file)
+    cookies = session_cookies(options.cookie_file)
     owned_driver = driver is None
     if driver is None:
         from selenium import webdriver

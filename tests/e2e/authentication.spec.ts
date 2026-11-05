@@ -6,7 +6,14 @@ test("a real deployment without credentials does not offer the demo bypass", asy
   await expect(page.getByRole("link", { name: /explore the sample archive/i })).toHaveCount(0);
 });
 
-for (const path of ["/dashboard", "/submit", "/reviews", "/reviews/30000000-0000-4000-8000-000000000001/edit", "/professors/10000000-0000-4000-8000-000000000001", "/courses/20000000-0000-4000-8000-000000000001"]) {
+for (const path of [
+  "/dashboard",
+  "/submit",
+  "/reviews",
+  "/reviews/30000000-0000-4000-8000-000000000001/edit",
+  "/professors/10000000-0000-4000-8000-000000000001",
+  "/courses/20000000-0000-4000-8000-000000000001",
+]) {
   test(`unauthenticated access is rejected for ${path}`, async ({ page }) => {
     const response = await page.goto(path);
     expect(response).not.toBeNull();
@@ -21,13 +28,22 @@ for (const path of ["/dashboard", "/submit", "/reviews", "/reviews/30000000-0000
   });
 }
 
-test("direct HTTP requests authenticate before validating private record IDs", async ({ request }) => {
-  for (const path of ["/professors/not-a-uuid", "/courses/not-a-uuid", "/reviews/not-a-uuid/edit", "/reviews/30000000-0000-4000-8000-000000000001/edit"]) {
+test("direct HTTP requests authenticate before validating private record IDs", async ({
+  request,
+}) => {
+  for (const path of [
+    "/professors/not-a-uuid",
+    "/courses/not-a-uuid",
+    "/reviews/not-a-uuid/edit",
+    "/reviews/30000000-0000-4000-8000-000000000001/edit",
+  ]) {
     const response = await request.get(path, { maxRedirects: 0 });
     expect([303, 307]).toContain(response.status());
     const destination = new URL(response.headers().location, "http://127.0.0.1:3001");
     expect(destination.pathname).toBe("/");
-    expect(await response.text()).not.toMatch(/Alex Morgan|Anonymous student|professor_id|course_id/);
+    expect(await response.text()).not.toMatch(
+      /Alex Morgan|Anonymous student|professor_id|course_id/,
+    );
   }
 });
 
@@ -35,7 +51,9 @@ test("non-university address is rejected without sending an access link", async 
   await page.goto("/");
   await page.getByLabel("University email").fill("visitor@example.org");
   await page.getByRole("button", { name: "Request Access" }).click();
-  await expect(page.getByText(/use.*nyu\.edu|university.*email|nyu\.edu.*address/i).last()).toBeVisible();
+  await expect(
+    page.getByText(/use.*nyu\.edu|university.*email|nyu\.edu.*address/i).last(),
+  ).toBeVisible();
   await expect(page.getByText(/check your (email|inbox)/i)).toHaveCount(0);
 });
 
@@ -43,7 +61,9 @@ test("missing backend credentials cannot claim a magic link was sent", async ({ 
   await page.goto("/");
   await page.getByLabel("University email").fill("student@nyu.edu");
   await page.getByRole("button", { name: "Request Access" }).click();
-  await expect(page.getByText(/not configured|configuration|unavailable|not connected/i).last()).toBeVisible();
+  await expect(
+    page.getByText(/not configured|configuration|unavailable|not connected/i).last(),
+  ).toBeVisible();
   await expect(page.getByText(/check your (email|inbox)/i)).toHaveCount(0);
 });
 

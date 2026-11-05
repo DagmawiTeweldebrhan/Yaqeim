@@ -13,9 +13,11 @@ python -m pip install -c requirements.lock -e .
 python -m unittest discover -s tests -v
 ```
 
-Set `GEMINI_API_KEY` and `GEMINI_MODEL` in the process environment for extraction. Choose a model enabled for your Gemini account that supports structured output. Set `INGESTION_DATABASE_URL` to an administrator PostgreSQL connection for imports. The application deliberately does not load the repository's `.env` file. Do not put credentials in command-line arguments, source files, screenshots, or logs. Hosted database connections require TLS; use `sslmode=verify-full` and the provider's CA configuration where available.
+Set `GEMINI_API_KEY` and `GEMINI_MODEL` in the process environment for extraction. Choose a model enabled for your Gemini account that supports structured output. Set `INGESTION_DATABASE_URL` to an administrator PostgreSQL connection for imports. `DATABASE_URL` is used by the web project's migration tooling; the pipeline deliberately requires the separate `INGESTION_DATABASE_URL` name. Do not put credentials in command-line arguments, source files, screenshots, or logs. Hosted database connections require TLS; use `sslmode=verify-full` and the provider's CA configuration where available.
 
-`requirements.lock` pins the tested dependency set (Selenium 4.52.0, google-genai 2.34.0, Psycopg 3.3.8). Update and retest that set deliberately rather than resolving new dependencies during production imports.
+Environment files are never discovered or loaded automatically. To use the existing project `.env`, explicitly pass `--env-file ../.env` from this directory. The option works before or after the subcommand. Only `FB_C_USER`, `FB_XS`, `ROR_GROUP_ID`, `GEMINI_API_KEY`, `GEMINI_MODEL`, and `INGESTION_DATABASE_URL` are loaded. Existing process variables take precedence, and `${...}` interpolation is disabled so cookie/key contents remain literal. Values are never printed.
+
+`requirements.lock` pins the tested dependency set (Selenium 4.52.0, google-genai 2.34.0, Psycopg 3.3.8, python-dotenv 1.2.4). Update and retest that set deliberately rather than resolving new dependencies during production imports.
 
 ## Semester workflow
 
@@ -26,6 +28,15 @@ Set `GEMINI_API_KEY` and `GEMINI_MODEL` in the process environment for extractio
 python -m yaqeim_ingest scrape --url "https://www.facebook.com/groups/YOUR_GROUP/search/?q=professor" --cookies "C:\Private\facebook-cookies.json" --output data/raw-semester.jsonl --max-posts 1000
 python -m yaqeim_ingest extract --input data/raw-semester.jsonl --output data/structured-semester.jsonl
 ```
+
+Alternatively, the existing project variable names are supported directly. Put your own authorized session's `c_user` and `xs` cookie values in `FB_C_USER` and `FB_XS`, and the group ID or group slug in `ROR_GROUP_ID`, either in the process environment or in an explicitly selected private dotenv file:
+
+```powershell
+python -m yaqeim_ingest --env-file ../.env scrape --query "Professor Name" --output data/raw-semester.jsonl --max-posts 1000
+python -m yaqeim_ingest --env-file ../.env extract --input data/raw-semester.jsonl --output data/structured-semester.jsonl
+```
+
+When `--url` is absent, an explicit nonempty `--query` is required; the group ID is validated and the query is encoded into the group-search URL. When `--cookies` is absent, both environment cookie values are required. An explicit cookie file takes precedence and is never silently replaced with environment credentials if invalid. `--url` remains supported independently of `ROR_GROUP_ID`; use the query embedded in that URL instead of also passing `--query`. Session cookies remain credentials regardless of which input method you choose.
 
 3. Review **every** structured record locally before import. Check the professor/course identity against the catalog, remove any residual student names or identifying context, verify the paraphrase and tags against the source, and discard ambiguous or unsupported claims. Email addresses, links, handles, and obvious international phone numbers are filtered automatically; this is not a complete personal-information detector. The LLM receives redacted post bodies only. Ensure that sending those bodies to your configured model provider is permitted before running extraction.
 4. Validation and dry runs require neither a database connection nor an LLM call. Once reviewed, import with the explicit editorial-review flag:
@@ -63,6 +74,10 @@ The image runs as UID 10001. Grant that user access to the private mounted direc
 
 ## Validation boundaries
 
-The dependency-free test suite covers model-schema rejection, rating conversion, privacy filtering, idempotency, transactional failure behavior, SQL parameterization, cookie filtering, URL restrictions, bounded scrolling, and CLI dry runs. These tests simulate Selenium/Gemini/database interfaces. A real group session, real model account, and a migrated staging Supabase database are needed for external integration acceptance. No production source data or credentials are bundled.
+The Python test suite covers model-schema rejection, rating conversion, privacy filtering, idempotency, transactional failure behavior, SQL parameterization, cookie filtering, URL restrictions, bounded scrolling, CLI dry runs, explicit dotenv loading, environment precedence, and secret-safe errors. These unit tests use synthetic credentials and simulate Selenium/Gemini/database interfaces; dotenv parsing uses the real installed dependency.
+
+After installing the root JavaScript dependencies, run `node --test pipeline/tests/database_contract.test.mjs` from the repository root. This second suite asks the actual Python importer to emit its SQL and bound values, then executes those statements as the administrator service role against the real migrations in PostgreSQL WASM (PGlite). It checks provenance, null metrics, normalized upserts, repeat-import deduplication, SQL-shaped input, metadata preservation, and transactional rollback. It requires Python on PATH, or an explicit `PYTHON` executable environment variable, but no remote service.
+
+A real group session, real model account, and a migrated staging Supabase database are still needed for external integration acceptance. No production source data or credentials are bundled.
 
 Implementation references: [Selenium cookie handling](https://www.selenium.dev/documentation/webdriver/interactions/cookies/), [Gemini structured output](https://ai.google.dev/gemini-api/docs/generate-content/structured-output), [Psycopg transactions](https://www.psycopg.org/psycopg3/docs/basic/transactions.html).

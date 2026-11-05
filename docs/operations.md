@@ -21,14 +21,14 @@ Create separate Supabase projects for staging and production. Use a region near 
 
 Use distinct Vercel environment variables for Preview and Production:
 
-| Variable | Meaning |
-| --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | URL of that environment's Supabase project |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Its publishable/anonymous API key; RLS protects access |
-| `NEXT_PUBLIC_SITE_URL` | Canonical HTTPS origin for that environment |
-| `UNIVERSITY_EMAIL_DOMAIN` | Exact allowed domain; default `nyu.edu`; keep in sync with SQL policy |
-| `DEMO_MODE` | `false` for real staging and production |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server-only credential for magic-link rate-limit bookkeeping; never used for student data access |
+| Variable                        | Meaning                                                                                          |
+| ------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `NEXT_PUBLIC_SUPABASE_URL`      | URL of that environment's Supabase project                                                       |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Its publishable/anonymous API key; RLS protects access                                           |
+| `NEXT_PUBLIC_SITE_URL`          | Canonical HTTPS origin for that environment                                                      |
+| `UNIVERSITY_EMAIL_DOMAIN`       | Exact allowed domain; default `nyu.edu`; keep in sync with SQL policy                            |
+| `DEMO_MODE`                     | `false` for real staging and production                                                          |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Server-only credential for magic-link rate-limit bookkeeping; never used for student data access |
 
 The web deployment does not need `DATABASE_URL`, Facebook cookies, or an LLM API key. Keep these outside Vercel. A server-only Supabase service-role credential is used exclusively for unauthenticated magic-link rate-limit bookkeeping; never use it to fetch or mutate student-facing review data. Public environment variables are embedded in browser assets: changing them requires a rebuild.
 

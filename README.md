@@ -50,18 +50,18 @@ Tests use synthetic accounts and content. Real email delivery, hosted provider c
 
 ## Project map
 
-| Location | Responsibility |
-| --- | --- |
-| `src/app/` | Server-rendered routes, authentication callback, validated actions |
-| `src/components/` | Forms, review feeds, metrics, and navigation helpers |
-| `src/lib/` | Authentication, data access, validation, taxonomy, explicit sample fixtures |
-| `src/db/`, `drizzle/` | Type-safe schema and reviewed SQL migrations |
-| `supabase/` | Database integration tests and administrator operations |
-| `pipeline/` | Separate ingestion package, Docker image, tests, and runbook |
-| `tests/` | Application/security/component and browser tests |
-| `.github/workflows/` | Validation and environment-specific migrations |
+| Location              | Responsibility                                                              |
+| --------------------- | --------------------------------------------------------------------------- |
+| `src/app/`            | Server-rendered routes, authentication callback, validated actions          |
+| `src/components/`     | Forms, review feeds, metrics, and navigation helpers                        |
+| `src/lib/`            | Authentication, data access, validation, taxonomy, explicit sample fixtures |
+| `src/db/`, `drizzle/` | Type-safe schema and reviewed SQL migrations                                |
+| `supabase/`           | Database integration tests and administrator operations                     |
+| `pipeline/`           | Separate ingestion package, Docker image, tests, and runbook                |
+| `tests/`              | Application/security/component and browser tests                            |
+| `.github/workflows/`  | Validation and environment-specific migrations                              |
 
-See [architecture coverage](docs/architecture-checklist.md), [operations](docs/operations.md), [database administration](supabase/ADMINISTRATION.md), and [ingestion instructions](pipeline/README.md).
+See [verification results](docs/implementation-report.md), [architecture coverage](docs/architecture-checklist.md), [operations](docs/operations.md), [database administration](supabase/ADMINISTRATION.md), and [ingestion instructions](pipeline/README.md).
 
 ## Architecture decisions
 

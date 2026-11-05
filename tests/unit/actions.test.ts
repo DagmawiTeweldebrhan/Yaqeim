@@ -35,14 +35,26 @@ vi.mock("@/lib/config", () => ({
   siteUrl: () => "https://archive.example",
 }));
 
-import { deleteReview, loadMoreReviews, logout, requestAccess, submitNewReview, updateReview, voteReview } from "@/app/actions";
+import {
+  deleteReview,
+  loadMoreReviews,
+  logout,
+  requestAccess,
+  submitNewReview,
+  updateReview,
+  voteReview,
+} from "@/app/actions";
 import { proxy } from "@/proxy";
 import { safeNext } from "@/lib/validation";
 
 const ID = "10000000-0000-4000-8000-000000000001";
 const COURSE = "20000000-0000-4000-8000-000000000001";
 const REVIEW = "30000000-0000-4000-8000-000000000001";
-const USER = { id: "40000000-0000-4000-8000-000000000001", email: "student@nyu.edu", email_confirmed_at: "2026-01-01T00:00:00Z" };
+const USER = {
+  id: "40000000-0000-4000-8000-000000000001",
+  email: "student@nyu.edu",
+  email_confirmed_at: "2026-01-01T00:00:00Z",
+};
 const INITIAL: ActionState = { status: "idle", message: "" };
 
 function emailForm(email = "student@nyu.edu") {
@@ -54,9 +66,15 @@ function emailForm(email = "student@nyu.edu") {
 function reviewForm() {
   const form = new FormData();
   for (const [key, value] of Object.entries({
-    professor_id: ID, course_id: COURSE, body: "Clear lectures with useful feedback on every assignment.",
-    overall_rating: "5", workload_rating: "3", grading_difficulty: "2", is_anonymous: "on",
-  })) form.set(key, value);
+    professor_id: ID,
+    course_id: COURSE,
+    body: "Clear lectures with useful feedback on every assignment.",
+    overall_rating: "5",
+    workload_rating: "3",
+    grading_difficulty: "2",
+    is_anonymous: "on",
+  }))
+    form.set(key, value);
   form.append("tags", "Easy A");
   return form;
 }
@@ -72,12 +90,17 @@ beforeEach(() => {
   mocks.signIn.mockResolvedValue({ data: {}, error: null });
   mocks.signOut.mockResolvedValue({ error: null });
   mocks.getUser.mockResolvedValue({ data: { user: USER }, error: null });
-  const client = { rpc: mocks.rpc, auth: { signInWithOtp: mocks.signIn, signOut: mocks.signOut, getUser: mocks.getUser } };
+  const client = {
+    rpc: mocks.rpc,
+    auth: { signInWithOtp: mocks.signIn, signOut: mocks.signOut, getUser: mocks.getUser },
+  };
   mocks.createServer.mockResolvedValue(client);
   mocks.createAdmin.mockReturnValue({ rpc: mocks.adminRpc });
   mocks.createSsr.mockReturnValue(client);
   mocks.headers.mockResolvedValue(new Headers({ "x-vercel-forwarded-for": "192.0.2.10" }));
-  mocks.redirect.mockImplementation((url: string) => { throw new Error(`REDIRECT:${url}`); });
+  mocks.redirect.mockImplementation((url: string) => {
+    throw new Error(`REDIRECT:${url}`);
+  });
   vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-not-a-real-key");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://database.example");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "test-anonymous-key");
@@ -88,7 +111,12 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("magic-link action security", () => {
-  it.each(["student@nyu.edu.attacker.example", "student@evilnyu.edu", "student@sub.nyu.edu", "bad-address"])("rejects non-university input %s before any provider call", async email => {
+  it.each([
+    "student@nyu.edu.attacker.example",
+    "student@evilnyu.edu",
+    "student@sub.nyu.edu",
+    "bad-address",
+  ])("rejects non-university input %s before any provider call", async (email) => {
     expect((await requestAccess(INITIAL, emailForm(email))).status).toBe("error");
     expect(mocks.createAdmin).not.toHaveBeenCalled();
     expect(mocks.signIn).not.toHaveBeenCalled();
@@ -105,22 +133,29 @@ describe("magic-link action security", () => {
       expect(payload.p_key).not.toContain("student");
       expect(payload.p_window_seconds).toBe(900);
     }
-    expect(mocks.signIn).toHaveBeenCalledWith({ email: "student@nyu.edu", options: { emailRedirectTo: "https://archive.example/auth/callback" } });
-    expect(mocks.adminRpc.mock.invocationCallOrder[1]).toBeLessThan(mocks.signIn.mock.invocationCallOrder[0]);
+    expect(mocks.signIn).toHaveBeenCalledWith({
+      email: "student@nyu.edu",
+      options: { emailRedirectTo: "https://archive.example/auth/callback" },
+    });
+    expect(mocks.adminRpc.mock.invocationCallOrder[1]).toBeLessThan(
+      mocks.signIn.mock.invocationCallOrder[0],
+    );
   });
 
   it.each([
     { data: false, error: null },
     { data: null, error: null },
     { data: true, error: { message: "database failure" } },
-  ])("fails closed when the IP rate-limit response is %j", async response => {
+  ])("fails closed when the IP rate-limit response is %j", async (response) => {
     mocks.adminRpc.mockResolvedValue(response);
     expect((await requestAccess(INITIAL, emailForm())).status).toBe("error");
     expect(mocks.signIn).not.toHaveBeenCalled();
   });
 
   it("fails closed when the email bucket is exhausted", async () => {
-    mocks.adminRpc.mockResolvedValueOnce({ data: true, error: null }).mockResolvedValueOnce({ data: false, error: null });
+    mocks.adminRpc
+      .mockResolvedValueOnce({ data: true, error: null })
+      .mockResolvedValueOnce({ data: false, error: null });
     expect((await requestAccess(INITIAL, emailForm())).status).toBe("error");
     expect(mocks.signIn).not.toHaveBeenCalled();
   });
@@ -147,7 +182,13 @@ describe("magic-link action security", () => {
     expect(result.message).not.toContain("secret provider details");
   });
 
-  it.each(["", "not-a-url", "javascript:alert(1)", "http://archive.example", "http://localhost:3000"])("rejects an invalid deployed callback origin %s", async origin => {
+  it.each([
+    "",
+    "not-a-url",
+    "javascript:alert(1)",
+    "http://archive.example",
+    "http://localhost:3000",
+  ])("rejects an invalid deployed callback origin %s", async (origin) => {
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", origin);
     expect((await requestAccess(INITIAL, emailForm())).status).toBe("error");
     expect(mocks.signIn).not.toHaveBeenCalled();
@@ -158,7 +199,10 @@ describe("magic-link action security", () => {
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", "http://127.0.0.1:3000");
     vi.stubEnv("VERCEL", "");
     expect((await requestAccess(INITIAL, emailForm())).status).toBe("success");
-    expect(mocks.signIn).toHaveBeenCalledWith({ email: "student@nyu.edu", options: { emailRedirectTo: "http://127.0.0.1:3000/auth/callback" } });
+    expect(mocks.signIn).toHaveBeenCalledWith({
+      email: "student@nyu.edu",
+      options: { emailRedirectTo: "http://127.0.0.1:3000/auth/callback" },
+    });
   });
 });
 
@@ -170,10 +214,14 @@ describe("review mutations", () => {
     form.set("source_hash", "forged-source");
     expect((await submitNewReview(INITIAL, form)).status).toBe("success");
     expect(mocks.rpc).toHaveBeenCalledWith("submit_review", {
-      p_professor_id: ID, p_course_id: COURSE,
+      p_professor_id: ID,
+      p_course_id: COURSE,
       p_body: "Clear lectures with useful feedback on every assignment.",
-      p_overall_rating: 5, p_workload_rating: 3, p_grading_difficulty: 2,
-      p_tags: ["Easy A"], p_is_anonymous: true,
+      p_overall_rating: 5,
+      p_workload_rating: 3,
+      p_grading_difficulty: 2,
+      p_tags: ["Easy A"],
+      p_is_anonymous: true,
     });
     expect(mocks.revalidate).toHaveBeenCalledWith(`/professors/${ID}`);
   });
@@ -233,7 +281,7 @@ describe("review mutations", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it.each([-2, 0.5, 2, NaN])("rejects invalid vote %s", async vote => {
+  it.each([-2, 0.5, 2, NaN])("rejects invalid vote %s", async (vote) => {
     expect((await voteReview(REVIEW, vote, INITIAL)).status).toBe("error");
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -257,17 +305,23 @@ describe("review mutations", () => {
   });
 
   it("does not redirect after a rejected deletion", async () => {
-    const form = new FormData(); form.set("confirm", "on");
+    const form = new FormData();
+    form.set("confirm", "on");
     mocks.rpc.mockResolvedValue({ error: { code: "42501" } });
     expect((await deleteReview(REVIEW, INITIAL, form)).status).toBe("error");
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
   it("redirects only after successful owner-checked deletion", async () => {
-    const form = new FormData(); form.set("confirm", "on");
-    await expect(deleteReview(REVIEW, INITIAL, form)).rejects.toThrow("REDIRECT:/reviews?deleted=1");
+    const form = new FormData();
+    form.set("confirm", "on");
+    await expect(deleteReview(REVIEW, INITIAL, form)).rejects.toThrow(
+      "REDIRECT:/reviews?deleted=1",
+    );
     expect(mocks.rpc).toHaveBeenCalledWith("delete_review", { p_review_id: REVIEW });
-    expect(mocks.rpc.mock.invocationCallOrder[0]).toBeLessThan(mocks.redirect.mock.invocationCallOrder[0]);
+    expect(mocks.rpc.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.redirect.mock.invocationCallOrder[0],
+    );
   });
 
   it("signs out then redirects to the public gate", async () => {
@@ -279,19 +333,30 @@ describe("review mutations", () => {
 describe("verified identity and private-route boundary", () => {
   it("requires verified access for directly invoked review pagination actions", async () => {
     mocks.requireUser.mockRejectedValue(new Error("REDIRECT:sign-in"));
-    await expect(loadMoreReviews({ professorId: ID, page: 2, sort: "helpful" })).rejects.toThrow("REDIRECT:sign-in");
+    await expect(loadMoreReviews({ professorId: ID, page: 2, sort: "helpful" })).rejects.toThrow(
+      "REDIRECT:sign-in",
+    );
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it.each([0, -1, 1.5, 5002, Infinity])("rejects an unbounded or invalid review page %s", async page => {
-    await expect(loadMoreReviews({ professorId: ID, page, sort: "helpful" })).rejects.toThrow();
-    expect(mocks.rpc).not.toHaveBeenCalled();
-  });
+  it.each([0, -1, 1.5, 5002, Infinity])(
+    "rejects an unbounded or invalid review page %s",
+    async (page) => {
+      await expect(loadMoreReviews({ professorId: ID, page, sort: "helpful" })).rejects.toThrow();
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    },
+  );
 
   it("retrieves the next review page through an authenticated bounded RPC", async () => {
     mocks.rpc.mockResolvedValue({ data: [], error: null });
     expect(await loadMoreReviews({ professorId: ID, page: 2, sort: "newest" })).toEqual([]);
-    expect(mocks.rpc).toHaveBeenCalledWith("get_reviews", { p_professor_id: ID, p_course_id: null, p_limit: 20, p_offset: 20, p_sort: "newest" });
+    expect(mocks.rpc).toHaveBeenCalledWith("get_reviews", {
+      p_professor_id: ID,
+      p_course_id: null,
+      p_limit: 20,
+      p_offset: 20,
+      p_sort: "newest",
+    });
     expect(mocks.requireUser).toHaveBeenCalled();
   });
 
@@ -300,7 +365,7 @@ describe("verified identity and private-route boundary", () => {
     { user: { ...USER, email_confirmed_at: null }, error: null },
     { user: { ...USER, email: "student@nyu.edu.attacker.example" }, error: null },
     { user: USER, error: { message: "invalid JWT" } },
-  ])("rejects an invalid identity in currentUser: %j", async result => {
+  ])("rejects an invalid identity in currentUser: %j", async (result) => {
     const auth = await vi.importActual<typeof import("@/lib/auth")>("@/lib/auth");
     mocks.getUser.mockResolvedValue({ data: { user: result.user }, error: result.error });
     expect(await auth.currentUser()).toBeNull();
@@ -312,7 +377,13 @@ describe("verified identity and private-route boundary", () => {
     expect(mocks.getUser).toHaveBeenCalledOnce();
   });
 
-  it.each(["/dashboard", "/professors/example", "/courses/example", "/submit", "/reviews/example/edit"])("protects %s from anonymous access", async path => {
+  it.each([
+    "/dashboard",
+    "/professors/example",
+    "/courses/example",
+    "/submit",
+    "/reviews/example/edit",
+  ])("protects %s from anonymous access", async (path) => {
     mocks.getUser.mockResolvedValue({ data: { user: null }, error: null });
     const response = await proxy(new NextRequest(`https://archive.example${path}`));
     expect(response.status).toBe(307);
